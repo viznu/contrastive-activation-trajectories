@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+.env
+
+# Large data / model files — should live on HF Hub or local disk, not git.
+# Exception: data/external/ holds small reference datasets.
+data/*
+!data/external/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+
+# Local result artifacts (figures kept; named result JSONs tracked).
+results/_*.json
+results/*.pkl
+results/*.npy
