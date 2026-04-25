@@ -1,5 +1,5 @@
-"""Three baseline probe families for misalignment classification from raw
-transformer activation trajectories.
+"""Probe families for misalignment classification from transformer activation
+trajectories.
 
 Common interface:
   fit(traj_train, y_train) -> None
@@ -7,8 +7,9 @@ Common interface:
 
 traj is torch.Tensor of shape (N, L, d); y is torch.Tensor of shape (N,) with {0, 1}.
 
-(The ContrastiveEncoderProbe that uses a frozen pretrained trajectory encoder
-is added separately in src/encoder/, so baselines stand alone here.)
+Three baselines operate on raw activations. ContrastiveEncoderProbe uses a
+frozen pretrained trajectory encoder (src/encoder/model.py) as a feature
+extractor and fits a logistic probe on the pooled latent.
 """
 from __future__ import annotations
 
@@ -124,3 +125,53 @@ class _TransformerClassifier(nn.Module):
         h = self.proj(x) + self.pos[:L]
         z = self.enc(h)
         return self.head(z.mean(dim=1)).squeeze(-1)
+
+
+class ContrastiveEncoderProbe:
+    """Frozen pretrained TrajectoryEncoder + L2-logistic probe on pooled latents."""
+    def __init__(self, ckpt_path: str, device: str = "cpu", C: float = 0.1,
+                 max_iter: int = 2000, pool: str = "layer", layer_idx: int | None = 24,
+                 window_start: int | None = None, window_end: int | None = None):
+        from src.encoder.model import TrajectoryEncoder, pool_latents
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        cfg = ckpt["config"]
+        self.device = device
+        self.encoder = TrajectoryEncoder(
+            d_in=ckpt["d_in"],
+            d_model=cfg["d_model"],
+            num_layers=cfg["enc_layers"],
+            num_heads=cfg["heads"],
+            max_L=max(ckpt["L"], 64),
+        ).to(device)
+        self.encoder.load_state_dict(ckpt["state_dict"])
+        self.encoder.eval()
+        for p in self.encoder.parameters():
+            p.requires_grad_(False)
+        self.norm_mean = ckpt["norm_mean"].to("cpu")
+        self.norm_std = ckpt["norm_std"].to("cpu")
+        self.pool = pool
+        self.layer_idx = layer_idx
+        self.window_start = window_start
+        self.window_end = window_end
+        self._pool_fn = pool_latents
+        self.scaler = StandardScaler()
+        self.clf = LogisticRegression(C=C, max_iter=max_iter)
+
+    @torch.no_grad()
+    def _featurize(self, traj):
+        x = ((traj.cpu() - self.norm_mean) / self.norm_std).to(self.device)
+        z = self.encoder(x)
+        feat = self._pool_fn(
+            z, mode=self.pool, layer_idx=self.layer_idx,
+            window_start=self.window_start, window_end=self.window_end,
+        )
+        return feat.cpu().numpy()
+
+    def fit(self, traj, y, traj_val=None, y_val=None):
+        X = self._featurize(traj)
+        y = _as_np(y)
+        self.clf.fit(self.scaler.fit_transform(X), y)
+
+    def predict_score(self, traj):
+        X = self.scaler.transform(self._featurize(traj))
+        return self.clf.decision_function(X)

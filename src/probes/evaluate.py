@@ -19,6 +19,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 
 from src.probes.probes import (
     SingleLayerProbe, AllLayersConcatProbe, TransformerOverLayersProbe,
+    ContrastiveEncoderProbe,
 )
 
 
@@ -55,6 +56,13 @@ def main():
     p.add_argument("--transformer_epochs", type=int, default=30)
     p.add_argument("--group_field", default=None,
                    help="If set (e.g. 'fact_ids'), split by group so paired examples stay together.")
+    p.add_argument("--encoder_ckpt", default=None,
+                   help="If provided, also run ContrastiveEncoderProbe on this encoder.")
+    p.add_argument("--encoder_pool", default="layer",
+                   choices=["mean", "last", "mid", "layer", "window"])
+    p.add_argument("--encoder_layer_idx", type=int, default=24)
+    p.add_argument("--encoder_window_start", type=int, default=None)
+    p.add_argument("--encoder_window_end", type=int, default=None)
     args = p.parse_args()
 
     blob = torch.load(args.data, map_location="cpu", weights_only=False)
@@ -102,7 +110,7 @@ def main():
         "test_recall_at_1pct_fpr": recall_at_fpr(yte.numpy(), s2, 0.01),
     }
 
-    print("\n[3/3] supervised transformer-over-layers")
+    print("\n[3/N] supervised transformer-over-layers")
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     probe3 = TransformerOverLayersProbe(d_in=d, epochs=args.transformer_epochs, device=device)
     probe3.fit(Xtr, ytr)
@@ -111,6 +119,24 @@ def main():
         "test_auroc": float(roc_auc_score(yte.numpy(), s3)),
         "test_recall_at_1pct_fpr": recall_at_fpr(yte.numpy(), s3, 0.01),
     }
+
+    if args.encoder_ckpt:
+        print(f"\n[4/N] contrastive-encoder probe  (ckpt={args.encoder_ckpt}, "
+              f"pool={args.encoder_pool}, layer_idx={args.encoder_layer_idx})")
+        probe4 = ContrastiveEncoderProbe(
+            args.encoder_ckpt, device=device,
+            pool=args.encoder_pool, layer_idx=args.encoder_layer_idx,
+            window_start=args.encoder_window_start, window_end=args.encoder_window_end,
+        )
+        probe4.fit(Xtr, ytr)
+        s4 = probe4.predict_score(Xte)
+        results["contrastive_encoder"] = {
+            "encoder_ckpt": args.encoder_ckpt,
+            "pool": args.encoder_pool,
+            "layer_idx": args.encoder_layer_idx,
+            "test_auroc": float(roc_auc_score(yte.numpy(), s4)),
+            "test_recall_at_1pct_fpr": recall_at_fpr(yte.numpy(), s4, 0.01),
+        }
 
     print("\n" + "=" * 60)
     print(f"{'probe':<30s} {'AUROC':>8s} {'recall@1%FPR':>14s}")

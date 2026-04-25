@@ -1,0 +1,19 @@
+{
+  "encoder_ckpt": "results/encoder_ip_infonce.pt",
+  "src": "data/instructed_pairs.pt",
+  "tgt": "data/refusal_pairs_matched.pt",
+  "pool": "layer",
+  "layer_idx": 24,
+  "N_src_train": 488,
+  "N_src_test": 124,
+  "N_tgt": 200,
+  "indist": {
+    "auroc": 0.9947970863683664,
+    "recall_at_1pct_fpr": 0.9838709677419355
+  },
+  "transfer": {
+    "auroc": 0.9479,
+    "recall_at_1pct_fpr": 0.84
+  },
+  "gap_auroc": 0.046897086368366425
+}
