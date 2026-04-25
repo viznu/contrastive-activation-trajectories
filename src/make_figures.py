@@ -1,4 +1,4 @@
-"""Generate paper-ready figures from result JSONs in results/."""
+"""Generate figures from result JSONs in results/."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,7 @@ def _probe_order():
         ("single_layer", "Single-layer\n(raw layer 24)"),
         ("all_layers_concat", "All-layers-concat\n(flattened L·d)"),
         ("transformer_over_layers", "Supervised\ntransformer-over-layers"),
-        ("contrastive_encoder", "Contrastive\ntrajectory encoder"),
+        ("contrastive_encoder", "Contrastive-pretrained\nencoder"),
     ]
 
 
@@ -54,7 +54,7 @@ def fig_main_comparison(src_json: Path, out_path: Path):
     for xi, v in zip(x, recalls):
         axes[1].text(xi, v + 0.003, f"{v:.4f}", ha="center", fontsize=8)
 
-    fig.suptitle("Main comparison — contrastive trajectory encoder vs raw-activation baselines",
+    fig.suptitle("Main comparison — contrastive-pretrained encoder vs raw-activation baselines",
                  fontsize=11, y=1.02)
     fig.tight_layout()
     fig.savefig(out_path, dpi=140, bbox_inches="tight")
@@ -121,9 +121,55 @@ def fig_transfer(src_jsons: dict, out_path: Path):
     ax.set_xticklabels(settings, fontsize=9)
     ax.set_ylim(0.9, 1.01)
     ax.set_ylabel("AUROC")
-    ax.set_title("Zero-shot transfer of contrastive trajectory encoder\n"
+    ax.set_title("Zero-shot transfer of contrastive-pretrained encoder\n"
                  "(layer-24 pool; probe fit on IP-true-train, no refit)")
     ax.legend(fontsize=9)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=140, bbox_inches="tight")
+    print(f"saved {out_path}")
+
+
+def fig_architecture_ablation(src_json: Path, out_path: Path):
+    """4-way architecture comparison: same SupCon objective, different encoders."""
+    with open(src_json) as f:
+        blob = json.load(f)
+    results = blob["results"]
+
+    kinds_order = ["linear_single", "linear_concat", "mlp_concat", "transformer"]
+    labels = {
+        "linear_single": "Linear\n(layer 24 only)\n0.5M params",
+        "linear_concat": "Linear\n(flat trajectory)\n19M params",
+        "mlp_concat": "MLP\n(flat trajectory)\n19M params",
+        "transformer": "Transformer\n(over layers)\n3.7M params",
+    }
+    aurocs = [results[k]["full_train_auroc"] for k in kinds_order]
+    recalls = [results[k]["full_train_recall_at_1pct_fpr"] for k in kinds_order]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+    x = np.arange(len(kinds_order))
+    colors = ["#8aa0c7", "#8aa0c7", "#8aa0c7", "#8aa0c7"]
+
+    axes[0].bar(x, aurocs, color=colors)
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels([labels[k] for k in kinds_order], fontsize=8)
+    axes[0].set_ylabel("AUROC")
+    axes[0].set_ylim(0.97, 1.002)
+    axes[0].set_title("AUROC on IP test (full N_train)")
+    for xi, v in zip(x, aurocs):
+        axes[0].text(xi, v + 0.0008, f"{v:.4f}", ha="center", fontsize=8)
+
+    axes[1].bar(x, recalls, color=colors)
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels([labels[k] for k in kinds_order], fontsize=8)
+    axes[1].set_ylabel("recall @ 1% FPR")
+    axes[1].set_ylim(0.85, 1.01)
+    axes[1].set_title("Recall @ 1% FPR")
+    for xi, v in zip(x, recalls):
+        axes[1].text(xi, v + 0.003, f"{v:.4f}", ha="center", fontsize=8)
+
+    fig.suptitle("Architecture ablation — same SupCon objective, different encoders\n"
+                 "(All four converge within noise; architecture is cosmetic on this task)",
+                 fontsize=10.5, y=1.04)
     fig.tight_layout()
     fig.savefig(out_path, dpi=140, bbox_inches="tight")
     print(f"saved {out_path}")
@@ -141,6 +187,8 @@ def main():
         "Task (distinct prefills)\n(IP → refuse/comply)": RESULTS / "transfer_task_refusal_distinct_layer24.json",
         "Task (matched prefills)\n(IP → refuse/comply)": RESULTS / "transfer_task_refusal_matched_layer24.json",
     }, FIGURES / "transfer.png")
+    fig_architecture_ablation(RESULTS / "fair_contrastive_baselines.json",
+                              FIGURES / "architecture_ablation.png")
 
 
 if __name__ == "__main__":
