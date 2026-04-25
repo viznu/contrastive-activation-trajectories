@@ -1,33 +1,46 @@
-# Label-Efficient Alignment Monitoring via Behavior-Paired Contrastive Pretraining
+# Behavior-Paired Activation Probes on Instructed-Pairs
 
-A controlled study of contrastive representation learning over a target LLM's
-internal activations, for monitoring alignment-relevant behavioral state.
+A controlled study of contrastive and non-contrastive representation learning
+over a target LLM's internal activations, for monitoring alignment-relevant
+behavioral state.
 
-## Findings
+> **Status:** the project arrived at a methodological negative result. The
+> full picture is below; please read the **Stress tests and limitations**
+> section before citing any single number.
 
-We pretrain a simple encoder on behavior-paired activations from a target
-LLM (e.g. honest vs. deceptive framing of factual claims) using a SupCon /
-InfoNCE objective. A small linear probe on the encoded features then:
+## What we set out to test
 
-1. **Matches CV-selected single-layer activation probes on AUROC** without
-   requiring layer selection.
-2. **Reaches 0.99+ AUROC from as few as 5 downstream labels** — roughly
-   32× more label-efficient than fitting a logistic probe directly on raw
-   activations from scratch.
-3. **Transfers zero-shot** across content distribution, behavioral axis,
-   and content type.
-4. **Is architecture-insensitive at this task and scale.** A single
-   Linear(2048, 256) projection trained with SupCon achieves the same
-   label-efficiency and transfer as an MLP on the flattened trajectory
-   or a transformer over layer slots. The contrastive objective and pair
-   structure are doing the work; the encoder architecture is cosmetic.
+Whether a small encoder pretrained with a SupCon / InfoNCE contrastive
+objective on behavior-paired transformer activations (e.g. honest vs.
+deceptive framing of factual claims) produces a label-efficient,
+transferable behavioral-state representation that beats raw-activation
+probes.
 
-What we are *not* claiming:
-- We are not claiming a new architecture; the architecture ablation shows
-  none of the variants we tested (linear, MLP, transformer-over-layers)
-  is required.
-- We are not claiming a general deception or alignment detector; the
-  results are on controlled paired-prompt benchmarks.
+## What the experiments actually show on Instructed-Pairs (Qwen2.5-3B)
+
+1. **At full N_train, the contrastive-pretrained encoder probe matches —
+   but does not beat — raw-activation probes.** AUROC ~0.99 across all
+   probes (single-layer, all-layers-concat, supervised transformer-over-
+   layers, contrastive-pretrained). 95% CIs overlap.
+2. **Architecture is cosmetic at this task and scale.** Linear, MLP, and
+   transformer encoders trained with the same SupCon objective converge
+   within ~0.01 AUROC of each other.
+3. **The contrastive objective is also cosmetic at this task and scale.**
+   PCA(256) on the flattened trajectory, with no training, matches the
+   contrastive encoder (0.9977 vs 0.9896 AUROC). Random-init encoder
+   gets 0.90. Shuffled-label contrastive gets 0.97. The honest/deceptive
+   signal in the activations is so strongly linearly separable that any
+   reasonable projection preserves it.
+4. **The contrastive encoder probe transfers zero-shot** to a different
+   content distribution (IP-true → IP-false) and to a different
+   behavioral axis (refuse vs. comply on AdvBench), even with
+   lexically-matched prefills. Whether the same is true of a PCA probe
+   was not tested.
+
+We did not establish that contrastive pretraining is the load-bearing
+factor for any of these results. The honest reading is that
+**Instructed-Pairs is too easy a benchmark for these methodological
+distinctions to register.**
 
 ## Headline numbers (Qwen2.5-3B-Instruct)
 
@@ -200,14 +213,71 @@ All results are on `Qwen/Qwen2.5-3B-Instruct` (36 transformer blocks, hidden
 size 2048) on a Mac Studio with MPS backend. Forward passes use fp16; saved
 trajectories and the contrastive encoder use fp32.
 
-## Limitations
+## Stress tests and limitations
 
-- Single target model. Cross-model generalization untested.
-- Two paired-prompt task families (Instructed-Pairs honest/deceptive,
-  AdvBench refuse/comply). Harder behavioral contrasts (sycophancy,
-  sandbagging, deeper deception) untested.
-- Contrastive pretraining uses paired supervision; this is not a fully
-  unsupervised method.
+We stress-tested the headline framing with negative controls and bootstrap
+confidence intervals. Two findings worth stating up front.
+
+### Bootstrap CIs (1000 resamples on the IP test set, N_test=124)
+
+```
+probe                       AUROC 95% CI         recall@1%FPR 95% CI
+single_layer                [0.977, 1.000]       [0.919, 1.000]
+all_layers_concat           [0.992, 1.000]       [0.921, 1.000]
+transformer_over_layers     [0.979, 1.000]       [0.776, 1.000]
+contrastive_encoder         [0.982, 1.000]       [0.942, 1.000]
+```
+
+The four probes' CIs overlap substantially on AUROC. Differences smaller
+than ~0.02 AUROC are not statistically meaningful on this test set.
+
+### Negative controls (does the contrastive objective and pair structure actually matter?)
+
+Same fact-grouped IP split, same downstream linear probe, but the encoder
+is varied:
+
+| Encoder / condition                                 | AUROC | recall@1%FPR |
+|---|---|---|
+| Real-label contrastive (reference)                  | 0.9896 | 0.9355 |
+| **PCA(256) on flattened trajectory, no training**   | **0.9977** | **0.9677** |
+| Random-init TrajectoryEncoder, no training          | 0.9014 | 0.2097 |
+| Contrastive trained with shuffled labels            | 0.9693 | 0.6129 |
+| Contrastive trained with length-based pseudo-labels | 0.9165 | 0.6613 |
+
+**PCA without any training matches and slightly beats the contrastive
+method.** Random projection alone gets 0.90 AUROC. Shuffled-label
+contrastive still gets 0.97 AUROC.
+
+The honest/deceptive signal in raw transformer activations on this
+benchmark is so strongly linearly separable that any reasonable 256-d
+projection of the trajectory preserves it for downstream probing. The
+contrastive objective and pair structure are not strictly necessary for
+the AUROC numbers we report. They appear to help recall@1%FPR vs random
+or length-pseudo-label controls, but PCA ties or beats real-label
+contrastive there as well.
+
+### What still holds
+
+- Contrastive pretraining produces a usable behavioral-state representation
+  that transfers across content distribution and behavioral axis.
+- Architecture is cosmetic across the four encoder variants tested.
+
+### What does not hold
+
+- Contrastive pretraining is not strictly required to recover the
+  behavioral-state signal on this benchmark; PCA matches it.
+- The "32× label efficiency" finding for contrastive vs raw probes
+  may not be specific to contrastive — it likely applies to any pretrained
+  256-d projection. We did not run a PCA few-shot sweep.
+
+### Limitations
+
+- Single target model (Qwen2.5-3B-Instruct).
+- Two paired-prompt task families. Harder behavioral contrasts (sycophancy,
+  sandbagging, subtler deception) are likely needed for the methodological
+  distinctions to register.
+- Contrastive pretraining uses paired supervision; this is not unsupervised.
+- Test sets are small (N=124 for IP, N=200 for refusal). CIs are wide.
 
 ## License
 

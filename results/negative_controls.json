@@ -1,0 +1,44 @@
+{
+  "data": "data/instructed_pairs.pt",
+  "config": {
+    "data": "data/instructed_pairs.pt",
+    "output": "results/negative_controls.json",
+    "test_frac": 0.2,
+    "split_seed": 42,
+    "d_model": 256,
+    "layer_idx": 24,
+    "epochs": 40,
+    "lr": 0.001,
+    "wd": 0.05,
+    "temperature": 0.07,
+    "shuffle_seed": 42
+  },
+  "results": {
+    "reference": {
+      "auroc": 0.9895941727367326,
+      "recall_at_1pct_fpr": 0.9354838709677419,
+      "description": "real-label contrastive"
+    },
+    "pca": {
+      "auroc": 0.9976586888657648,
+      "recall_at_1pct_fpr": 0.967741935483871,
+      "description": "PCA(256) on flat trajectory, no training"
+    },
+    "random_encoder": {
+      "auroc": 0.9014047866805411,
+      "recall_at_1pct_fpr": 0.20967741935483872,
+      "description": "random-init encoder, no training"
+    },
+    "shuffled_labels": {
+      "auroc": 0.9693028095733611,
+      "recall_at_1pct_fpr": 0.6129032258064516,
+      "description": "contrastive on shuffled labels"
+    },
+    "wrong_attribute": {
+      "auroc": 0.9164932362122787,
+      "recall_at_1pct_fpr": 0.6612903225806451,
+      "description": "contrastive on fact-length pseudo-labels",
+      "behavior_vs_pseudo_correlation": 0.0
+    }
+  }
+}

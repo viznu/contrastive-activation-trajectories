@@ -1,0 +1,46 @@
+{
+  "data": "data/instructed_pairs.pt",
+  "n_bootstrap": 1000,
+  "results": {
+    "single_layer": {
+      "test_auroc": 0.991675338189386,
+      "test_recall_at_1pct_fpr": 0.967741935483871,
+      "auroc_bootstrap_mean": 0.9917119693826214,
+      "auroc_bootstrap_95ci_low": 0.9769995054623927,
+      "auroc_bootstrap_95ci_high": 1.0,
+      "recall_bootstrap_mean": 0.9677235234220264,
+      "recall_bootstrap_95ci_low": 0.9193548387096774,
+      "recall_bootstrap_95ci_high": 1.0
+    },
+    "all_layers_concat": {
+      "test_auroc": 0.9976586888657648,
+      "test_recall_at_1pct_fpr": 0.967741935483871,
+      "auroc_bootstrap_mean": 0.9976569424564303,
+      "auroc_bootstrap_95ci_low": 0.9921875000000001,
+      "auroc_bootstrap_95ci_high": 1.0,
+      "recall_bootstrap_mean": 0.9684612905637143,
+      "recall_bootstrap_95ci_low": 0.9206029185867896,
+      "recall_bootstrap_95ci_high": 1.0
+    },
+    "transformer_over_layers": {
+      "test_auroc": 0.9921956295525494,
+      "test_recall_at_1pct_fpr": 0.8548387096774194,
+      "auroc_bootstrap_mean": 0.9922335687631905,
+      "auroc_bootstrap_95ci_low": 0.9785241312138272,
+      "auroc_bootstrap_95ci_high": 1.0,
+      "recall_bootstrap_mean": 0.8913615211144392,
+      "recall_bootstrap_95ci_low": 0.7761194029850746,
+      "recall_bootstrap_95ci_high": 1.0
+    },
+    "contrastive_encoder": {
+      "test_auroc": 0.9947970863683664,
+      "test_recall_at_1pct_fpr": 0.9838709677419355,
+      "auroc_bootstrap_mean": 0.9948845455424031,
+      "auroc_bootstrap_95ci_low": 0.9820449264490633,
+      "auroc_bootstrap_95ci_high": 1.0,
+      "recall_bootstrap_mean": 0.9840377826266591,
+      "recall_bootstrap_95ci_low": 0.9420076726342711,
+      "recall_bootstrap_95ci_high": 1.0
+    }
+  }
+}
